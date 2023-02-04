@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/opencontainers/runc/libcontainer/utils"
 	"github.com/urfave/cli"
 )
 
@@ -66,6 +67,7 @@ command(s) that get executed on start, edit the args parameter of the spec. See
 		},
 	},
 	Action: func(context *cli.Context) error {
+		utils.Timestamp("start run container")
 		if err := checkArgs(context, 1, exactArgs); err != nil {
 			return err
 		}

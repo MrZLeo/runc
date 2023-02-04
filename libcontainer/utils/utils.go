@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 	"unsafe"
 
 	securejoin "github.com/cyphar/filepath-securejoin"
@@ -164,4 +165,9 @@ func Annotations(labels []string) (bundle string, userAnnotations map[string]str
 		}
 	}
 	return
+}
+
+func Timestamp(format string) {
+	timeNow := time.Now().UnixNano()
+	fmt.Printf("[cfork@%d,%06d] %s\n", timeNow/1e6, timeNow%1e6, format)
 }

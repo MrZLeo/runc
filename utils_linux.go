@@ -66,6 +66,18 @@ func getContainer(context *cli.Context) (libcontainer.Container, error) {
 	return factory.Load(id)
 }
 
+// get specified container instance by it's ID
+func getContainerByID(context *cli.Context, id string) (libcontainer.Container, error) {
+	if id == "" {
+		return nil, errEmptyID
+	}
+	factory, err := loadFactory(context)
+	if err != nil {
+		return nil, err
+	}
+	return factory.Load(id)
+}
+
 func getDefaultImagePath() string {
 	cwd, err := os.Getwd()
 	if err != nil {

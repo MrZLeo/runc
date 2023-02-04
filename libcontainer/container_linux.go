@@ -116,6 +116,9 @@ type Container interface {
 
 	// NotifyMemoryPressure returns a read-only channel signaling when the container reaches a given pressure level
 	NotifyMemoryPressure(level PressureLevel) (<-chan struct{}, error)
+
+	// CGroupsManager return a cgroups.Manager
+	CGroupsManager() *cgroups.Manager
 }
 
 // ID returns the container's unique ID
@@ -126,6 +129,10 @@ func (c *linuxContainer) ID() string {
 // Config returns the container's configuration
 func (c *linuxContainer) Config() configs.Config {
 	return *c.config
+}
+
+func (c *linuxContainer) CGroupsManager() *cgroups.Manager {
+	return &c.cgroupManager
 }
 
 func (c *linuxContainer) Status() (Status, error) {
