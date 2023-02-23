@@ -16,6 +16,20 @@ package main
 #include <sys/un.h>
 #include <unistd.h>
 
+#define _GNU_SOURCE
+#include <poll.h>
+#include <sys/syscall.h>
+
+#ifndef __NR_pidfd_open
+#define __NR_pidfd_open 434
+#endif
+
+static int
+pidfd_open(pid_t pid, unsigned int flags)
+{
+    return syscall(__NR_pidfd_open, pid, flags);
+}
+
 int sendfds(int s, int *fds, int fdcount)
 {
     char buf[1];
@@ -49,50 +63,44 @@ int sendfds(int s, int *fds, int fdcount)
 }
 
 // Send multiple FDs to the unix socket
-int sendMultipleFDs(
-    char *sockPath,
-    int chrootFD,
-    int utsNamespaceFD,
-    int pidNamespaceFD,
-    int ipcNamespaceFD,
-    int mntNamespaceFD)
+int sendMultipleFDs(const char *sockPath,
+                    const int chrootFD,
+                    const pid_t pid)
 {
+    printf("get pidfd\n");
+    int pidFD;
+    if ((pidFD = pidfd_open(pid, 0)) == -1) {
+        printf("pidfd open fail\n");
+		return -1;
+    }
     printf("send multiple fds\n");
     // Connect to server via socket.
-    struct sockaddr_un_longer {
-        // unsigned char sun_len;
-        sa_family_t sun_family;
-        char sun_path[512];
-    };
-
     int s, len, ret;
-    struct sockaddr_un_longer remote = {
-        .sun_family = AF_UNIX
-    };
 
     if ((s = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
         printf("error when open socket\n");
         return -1;
     }
 
-    // remote.sun_family = AF_UNIX;
+    struct sockaddr_un remote = { .sun_family = AF_UNIX };
     strcpy(remote.sun_path, sockPath);
+
+    printf("socket path: %s\n", remote.sun_path);
+
     len = strlen(remote.sun_path) + sizeof(remote.sun_family);
-	printf("remote: %s\n", (char*)&remote);
+
+    printf("remote: %s\n", (char *)&remote);
     if (connect(s, (struct sockaddr *)&remote, len) == -1) {
         printf("errno is: %d\n", errno);
         printf("error when connect socket\n");
         return -1;
     }
 
-    int fds[5];
+    int fds[2];
     fds[0] = chrootFD;
-    fds[1] = utsNamespaceFD;
-    fds[2] = pidNamespaceFD;
-    fds[3] = ipcNamespaceFD;
-    fds[4] = mntNamespaceFD;
+    fds[1] = pidFD;
 
-    if (sendfds(s, fds, 5) == -1) {
+    if (sendfds(s, fds, 2) == -1) {
         printf("error when send fds\n");
         return -1;
     }
@@ -103,7 +111,7 @@ int sendMultipleFDs(
         return -1;
     }
 
-    int pid = atoi(pid_arr);
+    int targetPid = atoi(pid_arr);
 
     if (close(s) == -1) {
         printf("error when close socket\n");
@@ -111,7 +119,7 @@ int sendMultipleFDs(
     }
 
     printf("send finished\n");
-    return pid;
+    return targetPid;
 }
 */
 import "C"
@@ -146,7 +154,7 @@ var fork2ContainerCommand = cli.Command{
 		cli.StringFlag{
 			Name:  "fork-socket",
 			Usage: "the relative path to the fork socket in the zygote container according to the bundle path",
-			Value: "fork.sock",
+			Value: "f.sk",
 		},
 	},
 	Action: func(context *cli.Context) error {
@@ -206,37 +214,44 @@ func doFork(context *cli.Context, zygoteContainerID string, targetContainerID st
 	}
 
 	// open reuqired namespace fds
-	getNamespacePath := func(namespace string) string {
-		return "/proc/" +
-			fmt.Sprint(targetContainerState.InitProcessPid) +
-			"/ns/" +
-			namespace
-	}
-	utsNamespace := getNamespacePath("uts")
-	pidNamespace := getNamespacePath("pid")
-	ipcNamespace := getNamespacePath("ipc")
-	mntNamespace := getNamespacePath("mnt")
+	// FIXME: why don't copy net namespace?
+	// getNamespacePath := func(namespace string) string {
+	// 	return "/proc/" +
+	// 		// fmt.Sprint(targetContainerState.InitProcessPid) +
+	// 		"325456" +
+	// 		"/ns/" +
+	// 		namespace
+	// }
+	// utsNamespace := getNamespacePath("uts")
+	// pidNamespace := getNamespacePath("pid")
+	// ipcNamespace := getNamespacePath("ipc")
+	// mntNamespace := getNamespacePath("mnt")
+	// netNamespace := getNamespacePath("net")
 
-	utsNamespaceFd, err := os.Open(utsNamespace)
-	if err != nil {
-		return err
-	}
-	defer utsNamespaceFd.Close()
-	pidNamespaceFd, err := os.Open(pidNamespace)
-	if err != nil {
-		return err
-	}
-	defer pidNamespaceFd.Close()
-	ipcNamespaceFd, err := os.Open(ipcNamespace)
-	if err != nil {
-		return err
-	}
-	defer ipcNamespaceFd.Close()
-	mntNamespaceFd, err := os.Open(mntNamespace)
-	if err != nil {
-		return err
-	}
-	defer mntNamespaceFd.Close()
+	// utsNamespaceFd, err := os.Open(utsNamespace)
+	// if err != nil {
+	// 	return err
+	// }
+	// defer utsNamespaceFd.Close()
+	// pidNamespaceFd, err := os.Open(pidNamespace)
+	// if err != nil {
+	// 	return err
+	// }
+	// defer pidNamespaceFd.Close()
+	// ipcNamespaceFd, err := os.Open(ipcNamespace)
+	// if err != nil {
+	// 	return err
+	// }
+	// defer ipcNamespaceFd.Close()
+	// mntNamespaceFd, err := os.Open(mntNamespace)
+	// if err != nil {
+	// 	return err
+	// }
+	// defer mntNamespaceFd.Close()
+	// netNamespaceFd, err := os.Open(netNamespace)
+	// if err != nil {
+	// 	return err
+	// }
 
 	// open the rootfs of target container
 	// targetContainerBundle, _ := utils.Annotations(targetContainerState.Config.Labels)
@@ -255,8 +270,6 @@ func doFork(context *cli.Context, zygoteContainerID string, targetContainerID st
 
 	// find the path to zygote container fork socket
 	// zygoteContainerBundle, _ := utils.Annotations(zygoteContainerState.Config.Labels)
-	zygoteContainerRootfs := zygoteContainer.Config().Rootfs
-	zygoteContainerForkSocketPath, err := securejoin.SecureJoin(zygoteContainerRootfs, forkSocketPath)
 	// TODO: socket path should be a path points to the volume
 	// zygoteContainerRootfs := zygoteContainer.Config().Rootfs
 	zygoteContainerVolume, err := func() (string, error) {
@@ -271,6 +284,7 @@ func doFork(context *cli.Context, zygoteContainerID string, targetContainerID st
 	if err != nil {
 		return err
 	}
+
 	zygoteContainerForkSocketPath, err := securejoin.SecureJoin(zygoteContainerVolume, forkSocketPath)
 	fmt.Printf("socket path=%s\n", zygoteContainerForkSocketPath)
 	if err != nil {
@@ -283,10 +297,12 @@ func doFork(context *cli.Context, zygoteContainerID string, targetContainerID st
 	pid, err := invokeMultipleFds(
 		zygoteContainerForkSocketPath,
 		targetContainerRootfsFd,
-		utsNamespaceFd,
-		pidNamespaceFd,
-		ipcNamespaceFd,
-		mntNamespaceFd,
+		targetContainerState.InitProcessPid,
+		// utsNamespaceFd,
+		// pidNamespaceFd,
+		// ipcNamespaceFd,
+		// mntNamespaceFd,
+		// netNamespaceFd,
 	)
 	if err != nil {
 		return err
@@ -309,25 +325,15 @@ func doFork(context *cli.Context, zygoteContainerID string, targetContainerID st
 func invokeMultipleFds(
 	socketPath string,
 	rootDir *os.File,
-	utsNamespaceFd *os.File,
-	pidNamespaceFd *os.File,
-	ipcNamespaceFd *os.File,
-	mntNamespaceFd *os.File,
+	pid int,
 ) (int, error) {
-	cSock := C.CString(socketPath)
-	defer C.free(unsafe.Pointer(cSock))
+	cSockPath := C.CString(socketPath)
+	defer C.free(unsafe.Pointer(cSockPath))
 
-	pid, err := C.sendMultipleFDs(
-		cSock,
-		C.int(rootDir.Fd()),
-		C.int(utsNamespaceFd.Fd()),
-		C.int(pidNamespaceFd.Fd()),
-		C.int(ipcNamespaceFd.Fd()),
-		C.int(mntNamespaceFd.Fd()),
-	)
+	target_pid, err := C.sendMultipleFDs(cSockPath, C.int(rootDir.Fd()), C.pid_t(pid))
 
 	if err != nil {
 		return -1, err
 	}
-	return int(pid), nil
+	return int(target_pid), nil
 }
