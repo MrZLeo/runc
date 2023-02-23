@@ -257,6 +257,21 @@ func doFork(context *cli.Context, zygoteContainerID string, targetContainerID st
 	// zygoteContainerBundle, _ := utils.Annotations(zygoteContainerState.Config.Labels)
 	zygoteContainerRootfs := zygoteContainer.Config().Rootfs
 	zygoteContainerForkSocketPath, err := securejoin.SecureJoin(zygoteContainerRootfs, forkSocketPath)
+	// TODO: socket path should be a path points to the volume
+	// zygoteContainerRootfs := zygoteContainer.Config().Rootfs
+	zygoteContainerVolume, err := func() (string, error) {
+		mounts := zygoteContainer.Config().Mounts
+		for _, mount := range mounts {
+			if mount.Destination == "/cfork/" {
+				return mount.Source, nil
+			}
+		}
+		return "", errors.New("cannot find socket path for container fork")
+	}()
+	if err != nil {
+		return err
+	}
+	zygoteContainerForkSocketPath, err := securejoin.SecureJoin(zygoteContainerVolume, forkSocketPath)
 	fmt.Printf("socket path=%s\n", zygoteContainerForkSocketPath)
 	if err != nil {
 		return err
