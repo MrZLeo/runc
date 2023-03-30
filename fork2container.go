@@ -67,13 +67,11 @@ int sendMultipleFDs(const char *sockPath,
                     const int chrootFD,
                     const pid_t pid)
 {
-    printf("get pidfd\n");
     int pidFD;
     if ((pidFD = pidfd_open(pid, 0)) == -1) {
         printf("pidfd open fail\n");
 		return -1;
     }
-    printf("send multiple fds\n");
     // Connect to server via socket.
     int s, len, ret;
 
@@ -85,11 +83,8 @@ int sendMultipleFDs(const char *sockPath,
     struct sockaddr_un remote = { .sun_family = AF_UNIX };
     strcpy(remote.sun_path, sockPath);
 
-    printf("socket path: %s\n", remote.sun_path);
-
     len = strlen(remote.sun_path) + sizeof(remote.sun_family);
 
-    printf("remote: %s\n", (char *)&remote);
     if (connect(s, (struct sockaddr *)&remote, len) == -1) {
         printf("errno is: %d\n", errno);
         printf("error when connect socket\n");
@@ -118,7 +113,6 @@ int sendMultipleFDs(const char *sockPath,
         return -1;
     }
 
-    printf("send finished\n");
     return targetPid;
 }
 */
@@ -131,7 +125,6 @@ import (
 	"unsafe"
 
 	securejoin "github.com/cyphar/filepath-securejoin"
-	"github.com/opencontainers/runc/libcontainer/utils"
 	"github.com/urfave/cli"
 )
 
@@ -181,7 +174,7 @@ var fork2ContainerCommand = cli.Command{
 }
 
 func doFork(context *cli.Context, zygoteContainerID string, targetContainerID string, forkSocketPath string) error {
-	utils.Timestamp("start fork")
+	// utils.Timestamp("start fork")
 	// start fork
 	zygoteContainer, err := getContainerByID(context, zygoteContainerID)
 	if err != nil {
@@ -266,7 +259,7 @@ func doFork(context *cli.Context, zygoteContainerID string, targetContainerID st
 	}
 	defer targetContainerRootfsFd.Close()
 
-	fmt.Printf("target rootfs=%s\n", targetContainerRootfs)
+	// fmt.Printf("target rootfs=%s\n", targetContainerRootfs)
 
 	// find the path to zygote container fork socket
 	// zygoteContainerBundle, _ := utils.Annotations(zygoteContainerState.Config.Labels)
@@ -286,29 +279,24 @@ func doFork(context *cli.Context, zygoteContainerID string, targetContainerID st
 	}
 
 	zygoteContainerForkSocketPath, err := securejoin.SecureJoin(zygoteContainerVolume, forkSocketPath)
-	fmt.Printf("socket path=%s\n", zygoteContainerForkSocketPath)
+	// fmt.Printf("socket path=%s\n", zygoteContainerForkSocketPath)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("get all fds")
+	// fmt.Println("get all fds")
 
 	// send the fds to the socket
 	pid, err := invokeMultipleFds(
 		zygoteContainerForkSocketPath,
 		targetContainerRootfsFd,
 		targetContainerState.InitProcessPid,
-		// utsNamespaceFd,
-		// pidNamespaceFd,
-		// ipcNamespaceFd,
-		// mntNamespaceFd,
-		// netNamespaceFd,
 	)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("send fds success")
+	// fmt.Println("send fds success")
 
 	// apply target container's cgroup to new process
 	err = (*targetrCgroupManager).Apply(pid)
@@ -316,7 +304,10 @@ func doFork(context *cli.Context, zygoteContainerID string, targetContainerID st
 		return err
 	}
 
-	fmt.Println("apply cgroup success")
+	// fmt.Println("apply cgroup success")
+
+	// print pid of new process so that kubelet can get it
+	fmt.Println(pid)
 
 	return nil
 }
