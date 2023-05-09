@@ -299,10 +299,10 @@ func doFork(context *cli.Context, zygoteContainerID string, targetContainerID st
 	// fmt.Println("send fds success")
 
 	// apply target container's cgroup to new process
-	err = (*targetrCgroupManager).Apply(pid)
-	if err != nil {
-		return err
-	}
+	// err = (*targetrCgroupManager).Apply(pid)
+	// if err != nil {
+	// 	return err
+	// }
 
 	// fmt.Println("apply cgroup success")
 
